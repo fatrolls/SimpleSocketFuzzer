@@ -1,0 +1,18 @@
+[PROTOCOL] 1									 ;specify the type of protocol TCP=1, UDP=2 Can be one or the other and overwrites the commandline preferences. (default is TCP) 
+[TEST] 1										 ;the number of tests written inside this script										 		
+[VERBOSE] 1h										 ;activate the verbose output of the script, also the sent strings are shown on the CRT Terminal (default is not) 
+												 ;Optional. Could also have the value of 1H which means that the strings are written with HEX
+
+[C] <html>										 ;add a constant element to each transmission
+[M][ ] RPT10.A RPT10.B							 ;add a permutation element, two sequences of 10 'A's and 10 'B's
+[M][:] <body>:<head>:<title>:</a href=>			 ;add other permuations, the separator used is a : because one of the permutation string already has a space inside
+[M][ ] </body> </head> </title> </a>			 ; ..
+[M][ ] \x20 \x20 \x65 \x66						 ;add 4 permutations made of single bytes.
+[M][:] HEX00aa:6667:6869						 ;add other 3 permutations done by these sequences of bytes like 0000, 6667 6869 (note the separator char used is :)
+[M][] RND10										 ;another permutation made of 10 random characters each one. Note also the format "[M][ ] RND10" (with a space separator for a single mutant) is understood!
+[M][ ] </head> </html> </body> \n				 ;note that escaped characters like \n are correctly handled and transformed into returns
+[R] 0										 	 ;repeat the test just the number of times required to do all the combinations
+
+[C] aaaaa
+[M][ ] xxxxxxxxxxxxxx yyyyyyyyyyy
+[R] 0

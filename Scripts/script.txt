@@ -1,0 +1,33 @@
+[PROTOCOL] 1									 ;specify the type of protocol TCP=1, UDP=2 Can be one or the other and overwrites the commandline preferences. (default is TCP) 
+												 ;Optional parameter
+[TEST] 3										 ;the number of tests written inside this script (this value is used for the users' interface and not really needed internally)
+[VERBOSE] 1										 ;activate the verbose output of the script, also the sent strings are shown on the CRT Terminal (default is not) 
+												 ;Optional. You can also use the value "1H" instead of 1 which means that the strings are written with HEX
+
+[C] <start>										 ;add a constant element in the permutations, each transmission will start with this string (NOT MANDATORY). 
+												 ;There might be more lines with a constant..in that case all of them will be considered as constant elements and concatenated
+												 ;if no constants commands are given the packets are just made only of mutable elements
+[M][ ] RPT10.A RPT10.\x00\x65\x66\x00\x00\x00	 ;add two permutations, one made of 10 'A's and the other made of the following bytes 006566000000 repeated 10 times
+[R] 500											 ;repeat the test 500 times after all the permutation have been sent. 
+												 ;(if set to 0 just do the whole set of available permutations and stops)
+[D] 1000										 ;add a 1000 msec delay between one repetition and the following one (optional)
+[P]												 ;pause after the last string is sent out over the socket
+
+[C] <html>										 ;add a constant element to each transmission
+[M][ ] RPT10.A RPT10.B							 ;add a permutation element, two sequences made of 10 'A's and 10 'B's
+[M][:] <body>:<head>:<title>:</a href=>			 ;add other permuations, the separator used is a : because one of the permutation string already has a space inside
+[M][ ] </body> </head> </title> </a>			 ;still a set of permutation strings
+[M][ ] \x20 \x21 \x65 \x66						 ;add 4 permutations made of single bytes 20h, 21h, 65h and 66h.
+[M][:] HEX0000:6667:6869						 ;add other 3 other permutations, since the line has HEX all the following strings are considered as hex bytes
+												 ;therefore the added permutations are these hex dwords 0000h 6667h 6869h (note the separator char used is :)
+[M][] RND10										 ;another permutation made of 10 random characters. 
+												 ;Note also a command such as "[M][ ] RND10" (with a space separator for a single mutant) is understood, even if it's not required because there's only one mutant in the line.
+[M][ ] </head> </html> </body> \n				 ;note that escaped characters like \n are correctly handled and transformed into returns
+[R] 0										 	 ;repeat the test just the number of times required to do all the permuations, no packets are sent twice.
+[P]												 ;pause the script after the execution of the just read test (to eventually let you check the server side results). 
+												 ;Note: this instruction could be places anywhere before the [R] command.
+
+[C] HEXAABBCCDD									 ;adds a constant element to each packet send which is the hex sequence AABBCCDDh
+[M][ ] RND25 RND25								 ;two permutations made of 25 random characters each
+[M][ ] RND25 RPT10.\x00 <script!> \r\n \x45\x45	 ;you can combine all the possibilities together, this command adds 5 permutations: a sequence of 25 characters, a sequence of 10 times the 00h byte, the string "<script!>", a "\r\n" string and finally the two bytes 4545h.
+[R] 10000										 ;repeats the tests untill reach 1000 sends.

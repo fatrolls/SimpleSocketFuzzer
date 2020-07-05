@@ -1,0 +1,10 @@
+[C] <html>								;a simple script example useful to stress an html server
+[M][:] <body>:<head>:<title>:<a href=">
+[M][ ] </body> </head> </title> </a>
+[M][ ] RND10
+[M][ ] </head> </html> </body>
+[R] 100
+
+[M][ ] RND25 RND25
+[M][ ] RND25 RND25
+[R] 1000
