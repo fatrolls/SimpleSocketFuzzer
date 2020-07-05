@@ -1,0 +1,387 @@
+Introduction
+------------
+This SimpleSocketFuzzer is designed to be simple and easy to use, so you don't have to study a complex API or pour over the code to see what it's doing. On the other hand, this means that the fuzzer needs more attending, and that it's logging capability are almost 0. Any target should be run under a debugger, since the fuzzer will only notify you that the target is down, and not what actually killed the target. 
+However it is useful in different situations, for the initial stress testing of a protocol handler (either binary or text based), for the stress testing of a custom server (ftp, http or json) etc. In general whenever you need to crash a messages handler exposed over a socket.
+I'm used to use this fuzzer with WireShark just to monitor the answers coming from tested ip and port.
+
+Why I started to write my own fuzzer? There are plenty of other fuzzers around already, but all were or too complex to use or just won't fit my real needs (which was fuzzing an arbitrary binary or char based protocol).
+
+I found the initial project on the web, it was coded by a guy called .::SCHiM::. (http://www.mpgh.net/forum/31-c-c-programming/508493-entry-level-text-based-fuzzer.html) but I have  improved it for my needs.
+
+What I did are the following features:
+1. optimized and cleaned the code
+2. written much of the code using C++11 constructs and VS2012
+3. added support for scripting (using my own simple syntax)
+4. added support for binary patterns, HEX and RPT commands and for RNDH
+5. added support for UDP socket 
+6. improved support for logging results and errors
+7. added commandline syntax
+8. fixed some errors in the original code
+
+as for the original author I am releasing the whole sources, just give credits if you will use or improve this little tool.
+
+Limitations
+-----------
+At the moment of writing VS2012 only supports compiled code for Windows Vista and above, it can't produce executables for WinXP. Microsoft promised a patch of Visual Studio which will enable compilation of programs also for WinXP. As a matter of facts at the moment the program only works on Windows Vista and above systems, despite it's written using  standard c++11 and base windows services (such as sockets).
+Note that since I use several new C++11 features VS2010 can't compile the program.
+
+What's inside the distribution
+------------------------------
+the distribution contains:
+1- some simple scripts to test the tool, 
+2- these instructions, 
+3- the sources and the complete VS2012 solution
+4- a folder containing the program SocketTest v3.00, a java program I got from the net that I have slighly modified in order to be more immediate to use as a test too for the scripts. It's very handy because if you send out textual string it's possible to immediately see the textual packets sent by the fuzzer but as well, if you send out binary packets, is also possible to Save the received stream and open it into an hex editor to see the received bytes.
+
+What is a fuzzer in general and what is this fuzzer meant for
+-------------------------------------------------------------
+Well at its roots a fuzzer is a program which stress-test another service (a victim) through an input channel (user interface, any communication channel, etc) sending any possible shit with the declared intent to  crash the victim. It's often used to stress-test user input validation check routines of programs against security requirements. Wikipedia in its page on fuzzing uses these words:
+"Fuzz testing or fuzzing is a software testing technique, often automated or semi-automated, that involves providing invalid, unexpected, or random data to the inputs of a computer program. The program is then monitored for exceptions such as crashes, or failing built-in code assertions or for finding potential memory leaks. Fuzzing is commonly used to test for security problems in software or computer systems."
+There are plenty fuzzers around for all the possible different input channels a program might have, there are even books on fuzzing methods. 
+This simple program is a *mutation based fuzzer*. Again, this is what wiki says: "Mutation based fuzzers mutate existing data samples to create test data while generation based fuzzers define new test data based on models of the input.". These "dumb" fuzzers take a more generic approach to allow for fuzzing of arbitrary protocols and file formats and perform simple, non-protocol-aware mutations. 
+I will not explain fuzzing here, so just train yourself. Just two basic references:
+1. http://en.wikipedia.org/wiki/Fuzz_testing
+2. http://www.blackhat.com/presentations/bh-usa-07/Amini_and_Portnoy/Whitepaper/bh-usa-07-amini_and_portnoy-WP.pdf a review of several existing fuzzing frameworks.
+
+What this fuzzer does
+---------------------
+The fuzzer accepts (in a script) a simple list of constant or mutable strings (binary or literal strings are all accepted) and sends to a specific TCP/UDP ip and port all the possible permutations allowed by the supplied constant and mutable combinations. The constants parts are thos strings that must always be present in a message (for example a fixed header) and the mutables are those strings that can be mixed freely in all the possible combinations. Each resulting message is sent to an IP address on a specified port. At the end of the whole testing procedure (all the permutations have been sent for the specified number of times) the fuzzer  tests if the server is still up (but only for the TCP protocol of course) just trying to open a socket to that ip and port.
+
+Scripts logic
+-------------
+The program accepts as commandline argument simple scripts, which follows a simple custom syntax. 
+Note: the script parser is quite simple and doesn't check too much, so if you write shits you get shits.. ;-)
+
+Each script file has an header section, where it's possible to add some commands, such as verbosity level, protocol used (tcp/udp) and the number of tests inside the script. All these heading commands can be omitted, in case the program uses default values.
+
+[PROTOCOL] 1	;specify the type of protocol TCP=1, UDP=2 Can be one or the other and overwrites the commandline preferences. (default is TCP) 
+				;Optional parameter
+[TEST] 3		;the number of tests written inside this script, just used for the interface and not really mandatory.
+[VERBOSE] 1		;activate the verbose output of the script, also the sent strings are shown on the CRT Terminal (default is not) 
+				;Optional. Could also have the value of 1H which means that the strings are written with HEX
+
+After the header section you can add as many test scripts as you like, without limitations.
+
+Typically a single test script is made of single command lines starting with the command-type among square brackets. Allowed commands are for example:
+
+[C] to add a constant string
+[M] to add a mutable series of strings
+[R] to specify the number of repetitions
+[P] to pause the fuzzer after the test execution
+
+These lines have each one its simple syntax, for example (actually the ; is used to start a line comment):
+
+	[C] <html>  		; adds the constant string "<html>" at the beginning of each sent packet
+	[M][ ] aaa bbb ccc	; adds 3 mutable elements (separated by a space, note the separator specified after the [M] part of the command) to the sent packets.
+	[R] 0
+
+So the result in this case is that the fuzzer sends out these packets:
+
+	<html>aaa
+	<html>bbb
+	<html>ccc
+		
+Note: the [R] 0 command just does 0 repeats then it only does all the permutations without repeating them. [R] 0 is useful to test if your test script has been properly written just looking which packets send out.
+
+Typically a test script is made of a fixed sequence of commands (one for each line), some are mandatory (those between [] brakets), some are optional (those between {} brackets) as following:
+
+	[{[C]}
+	{list of [M]}]
+	[R]
+	{[D]}
+	{[P]}
+	
+the above notation means that one or more lines starting with [C] or a number of lines starting with [M] are mandatory, but you can have only lines with [C] (even more than one) with no lines starting with [M] and viceversa. So it is possible to have tests with only a [C] and no [M] or with only [M], but you can't have scripts with no lines starting with [C] and [M] commands. [R] is mandatory because otherwise the test is not executed at all. [P] is optional. [D] is optional and used to set a number of msec between re-transmission of packets to the target host (useful for very slow connections).
+
+For example a script like this is NOT allowed, because there are no lines starting with [C] or [M]:
+
+	[R] 500
+
+The sequence of the script commands must always be this: [C] or [M] could be exchanged in order but must always be before [R] and [P] commands. So it is ok to have a test like this:
+
+	[M][ ] ....
+	[C] ......
+	[R] ...
+
+but NOT something as the following:
+
+	[M][ ] ....
+	[R] ...
+	[C] ......
+
+when the line with [R] is met the program assumes the test script is ready to go and therefore all the required information must have already been supplied.
+
+The [C] and [M] commands are the most complex. Both shares the type of elements that can be supplied. The allowed modifier are:
+
+	RPT	-> used to repeat a specified number of times a string or a single byte/letter
+		RPT10.A inserts in the packets this sequence AAAAAAAAAA
+		RPT10.shub inserts in the packets the sequence "shub" repeated 10 times.
+			
+	RND and RNDH -> are used to create a random sequence byte or chars of a specified length
+		RND<int32>. This token specifies a random string of characters with <int32> length.
+		RNDH<int16>. This token specifies a random string of characters with <int16> length. For example:
+		
+		RND2 could produce:
+			A3 4C
+			or
+			#5 $J
+  
+		while RNDH1 could produce
+		
+			A -> a 65h is sent into the stream
+			or 
+			4 -> a 35h is sent into the stream
+		
+		Honestly RNDH has been implemented and left in place, but I rarely use it.
+
+	HEX -> used to specify that all the elements of the line must be considered HEX values and not chars. It's useful for long byte sequences because you don't have to write \x before each byte.
+		for example "HEXAABBCCDD" uses the byte sequence AABBCCDD for the fuzzing and sends these bytes. It's really handy for binary based protocol's fuzzing
+		NB: also "HEX AABBCCDD", with a space after HEX is good.
+	
+	\x	-> used to escape an hex byte (like with the C language)
+		this escape char can be used with all the other commands so it's possible to have a line such as
+		RPT5.\x00 which adds to the packets this sequence of five 00s: 0000000000
+		RPT10.\x00\x65\x66\x00\x00\x00 inserts in the packets a sequence of the bytes 006566000000h repeated ten times.
+
+Just read the example scripts given for some examples. I think that the whole syntax is very intuitive.
+	
+A complete example:
+-------------------
+What follows is an example that could be run using the program where I tried to use all the possible script commands, just look the comments which are self explanatory.
+
+[PROTOCOL] 1									 ;specify the type of protocol TCP=1, UDP=2 Can be one or the other and overwrites the commandline preferences. (default is TCP) 
+												 ;Optional parameter
+[TEST] 3										 ;the number of tests written inside this script (this value is used for the users' interface and not really needed internally)
+[VERBOSE] 1										 ;activate the verbose output of the script, also the sent strings are shown on the CRT Terminal (default is not) 
+												 ;Optional. You can also use the value "1H" instead of 1 which means that the strings are written with HEX
+
+[C] <start>										 ;add a constant element in the permutations, each transmission will start with this string (NOT MANDATORY). 
+												 ;There might be more lines with a constant..in that case all of them will be considered as constant elements and concatenated
+												 ;if no constants commands are given the packets are just made only of mutable elements
+[M][ ] RPT10.A RPT10.\x00\x65\x66\x00\x00\x00	 ;add two permutations, one made of 10 'A's and the other made of the following bytes 006566000000 repeated 10 times
+[R] 500											 ;repeat the test 500 times after all the permutation have been sent. 
+												 ;(if set to 0 just do the whole set of available permutations and stops)
+[D] 1000										 ;add a 1000 msec delay between one repetition and the following one (optional)
+[P]												 ;pause after the last string is sent out over the socket
+
+[C] <html>										 ;add a constant element to each transmission
+[M][ ] RPT10.A RPT10.B							 ;add a permutation element, two sequences made of 10 'A's and 10 'B's
+[M][:] <body>:<head>:<title>:</a href=>			 ;add other permuations, the separator used is a : because one of the permutation string already has a space inside
+[M][ ] </body> </head> </title> </a>			 ;still a set of permutation strings
+[M][ ] \x20 \x21 \x65 \x66						 ;add 4 permutations made of single bytes 20h, 21h, 65h and 66h.
+[M][:] HEX0000:6667:6869						 ;add other 3 other permutations, since the line has HEX all the following strings are considered as hex bytes
+												 ;therefore the added permutations are these hex dwords 0000h 6667h 6869h (note the separator char used is :)
+[M][] RND10										 ;another permutation made of 10 random characters. 
+												 ;Note also a command such as "[M][ ] RND10" (with a space separator for a single mutant) is understood, even if it's not required because there's only one mutant in the line.
+[M][ ] </head> </html> </body> \n				 ;note that escaped characters like \n are correctly handled and transformed into returns
+[R] 0										 	 ;repeat the test just the number of times required to do all the permuations, no packets are sent twice.
+[P]												 ;pause the script after the execution of the just read test (to eventually let you check the server side results). 
+												 ;Note: this instruction could be places anywhere before the [R] command.
+
+[C] HEXAABBCCDD									 ;adds a constant element to each packet send which is the hex sequence AABBCCDDh
+[M][ ] RND25 RND25								 ;two permutations made of 25 random characters each
+[M][ ] RND25 RPT10.\x00 <script!> \r\n \x45\x45	 ;you can combine all the possibilities together, this command adds 5 permutations: a sequence of 25 characters, a sequence of 10 times the 00h byte, the string "<script!>", a "\r\n" string and finally the two bytes 4545h.
+[R] 10000										 ;repeats the tests untill reach 1000 sends.
+												 
+each test session ends with the last [R] keyword line, then it is immediately executed.
+
+Special Characters
+------------------
+Some characters are used for special meaning and cannot be escaped for the moment, this implies that you cannot use them within a constant or a permutation string. For example you cannot be use the "\x" string and the ; char because these two are used respectively to escape hex values and to start a comment. The same happens for the strings "HEX", "RPT", "RND"
+Note: If a required sequence (either constant or mutant) has some spaces inside (for example "</a href=>" you can use a different separator (but take care that it cannot be a ;)
+
+A simple run
+------------
+Try this example:
+
+write the following file script.txt
+
+	[TEST] 1
+	[VERBOSE] 1
+	
+	[C] <start>
+	[C] <substart>
+	[M][ ] AAA BBB CCC
+	[M][] DDD
+	[R] 0
+
+launch SocketTest (a java program useful to test your scripts) and call the program as following:
+
+	SimpleSocketFuzzer.exe 127.0.0.1:50000 script.txt
+
+it will produce this output:
+
+	Fuzzing on TCP://127.0.0.1:50000, Script_File: script.txt
+	Number of tests to perform: 1
+	Verbose mode: ACTIVATED
+			Added Constant: <start>
+			Added Constant: <substart>
+			Added Mutable: AAA BBB CCC (  )
+			Added Mutable: DDD
+			Added Repeats: 0
+			Executing attack #1 of 1
+					Socket send: <start><substart>AAADDD
+					Socket send: <start><substart>BBBDDD
+					Socket send: <start><substart>CCCDDD
+					Permutations done: 3
+			Target still up!
+
+	All jobs (#1) terminated
+	
+
+Few minimal yet useless (?) test script examples
+------------------------------------------------
+Try this test script:
+
+	[C] <start>
+	[M][ ] AAA BBB 
+	[M][] RPT3.C
+	[R] 0
+	
+the result is that these strings are sent over (if you add the [VERBOSE] header to the script file you can verify it on your own)
+
+	<start>AAACCC
+	<start>BBBCCC
+	
+all the permutations of the strings are made just once and no repetitions are done.
+
+Try instead this test script:
+
+	[C] <start>
+	[M][ ] AAA BBB 
+	[M][ ] RPT3.C RND10
+	[M][] HEX656565
+	[R] 0
+	
+these strings are sent over..
+
+	Socket send: <start>AAA+ษ=ฆ+?ฟeee
+	Socket send: <start>BBBp+`++Xah8+eee
+	Socket send: <start>AAACCCeee
+	Socket send: <start>BBBCCCeee
+
+	or alternatively, if you use the command "[VERBOSE] 1H" into the script file you'll get the same result in hex format:
+
+	Socket send: 3C73746172743E41414100B0A858609060E83080656565
+	Socket send: 3C73746172743E424242F810700820F8B050C8A8656565
+	Socket send: 3C73746172743E414141434343656565
+	Socket send: 3C73746172743E424242434343656565
+	
+if you check these are all the possible combinations.
+
+
+Howto of the C++ library
+------------------------
+Here I have integrated the original instructions that SCHiM wrote, the base class interface is not changed that much. If you wanna write your own fuzzer using those classes, now you can.
+
+There are basically 6 functions that you need to worry about:
+
+cFuzz::AddConstant( string Const );
+
+For example the following code will add a piece of string that will never change.
+
+cFuzz c;
+c.AddConstant("<html>");
+
+the first word in the stressing sentence will always be <html>
+
+cFuzz::AddMutable (string Mutatbles, string Delimiter = " " );
+Adds a piece of text that will change with each iteration of the fuzzer. The mutables are strings or words separated by the Delimiter .
+
+	cFuzz c;
+	c.AddMutable( "<body> <head> <title> <a href=\">", " " );
+
+Example output:
+
+	<html><head>
+	<html><title>
+
+cFuzz::Repeat( nTimes );
+Instructs the fuzzer to extend the iteration nTimes, even after the maximum amount of permutations is reached (the counter will reset)
+
+	cFuzz c;
+	c.Repeat( 10 );
+
+extern int DoRound( cFuzz &c, string Address, int Port );
+extern int DoRound( cFuzz &c, char* Address, int Port );
+Executes all possible permutations of the fuzzer, and reports if the target is still up after every possible combination has been made and sent to the target.
+
+For example a really simple way of using the classes is the following one:
+
+	string Address = "localhost";
+	int Port = 2424;
+	cFuzz c;
+
+	c.AddConstant( "<html>" );
+	c.AddMutable( "<body> <head> <title> <a href=\">", " " );
+	c.AddMutable( "</body> </head> </title> </a>", " " );
+	c.AddMutable( "</head> </html> </body>", " " );
+	c.Repeat( 10 );
+
+	if( DoRound( c, Address, Port ) == TARGET_UP ) {
+		printf("Target still up!\n");
+	} 
+	else {
+		printf("Target down!\n");
+	}
+
+Init() does all initial preparation;
+
+Cleanup() cleans everything up;
+
+Repeat() until you feel like you've gotten enough combinations, if it's placed to 1 just do all the possible combinations and terminates, if it's set to more than 1 then continue while enough sends are made.
+
+Special tokens
+--------------
+The c::AddMutable() can take a special tokens:
+
+	RND<int32>. This token specifies a random string of characters with <int32> length. 
+    RNDH<int16>. This token specifies a random string of characters with <int16> length.
+
+	For example:
+	
+	c.AddMutable( "RND2 RND2", " " );
+
+	Could produce:
+		A3 4C
+	or
+		#5 $J
+  
+	while
+  
+	c.AddMutable( "RNDH1 RNDH1", " " );
+	
+	could produce
+		A -> a 65h is sent into the stream
+	or 
+		4 -> a 35h is sent into the stream
+  
+	HEX<byte sequences>
+	"HEX6566 6667 6869" if at the beginning of the string appears the "HEX" constant all the rest of the string is considered as a list of delimiter separated hexadecimal values. This is useful to send specific sequences of bytes into the stream.
+	
+	for example "HEXAABBCCDD" uses the byte sequence AABBCCDD for the fuzzing and sends these bytes.
+	
+		c.AddConstant( "HEXAABBCCDD", ""); adds a constant element, for example it's useful for binary based protocols
+		NB: c.AddConstant( "HEX AABBCCDD", ""); also with a space after hex is good
+
+		c.AddMutable( "HEX0000 AAAA BBBB CCCC", " "); adds 3 mutable sequence of bytes AAAA, BBBB and CCCC to the list of permutations used.
+	
+	
+	The RPT<int32><sequence>
+	it is used to repeat a sequence of bytes or a single string/character for a specified number of times. For example it's useful when you want to insert in the stream repetitive sequence of char/bytes to test.
+	
+	for example:
+		RPT10.A insert in the streams 10 'A'
+		RPT10.\x00\x65\x66\x00\x00\x00 insert in the string 10 sequence of these bytes 006566000000
+
+
+History
+-------
+The tool will always be distributed through the ARTeam download pages. Check there for new releases.
+
+	Version 1.0 first release w sources
+
+Credits
+-------
+Shub-Nigurrath of ARTeam (2012)
+		
